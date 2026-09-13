@@ -1,0 +1,17 @@
+services:
+  unrealircd:
+    image: unrealircd:latest
+    container_name: unrealircd-server
+    restart: unless-stopped
+
+    ports:
+      - "6667:6667"   # Port IRC standard
+      - "6697:6697"   # Port IRC avec SSL/TLS
+
+    volumes:
+      # Montage des dossiers locaux pour modification et persistance
+      - ./volumes/conf:/home/ircd/unrealircd/conf
+      - ./volumes/data:/home/ircd/unrealircd/data
+      - ./volumes/cache:/home/ircd/unrealircd/cache
+      - ./volumes/tmp:/home/ircd/unrealircd/tmp
+      - ./volumes/logs:/home/ircd/unrealircd/logs
