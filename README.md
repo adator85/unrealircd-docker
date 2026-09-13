@@ -80,6 +80,16 @@ Refer to the [UnrealIRCd Configuration Guide](https://www.unrealircd.org/docs/Co
 | `/home/ircd/unrealircd/tmp` | `./volumes/tmp` | Temporary files |
 | `/home/ircd/unrealircd/logs` | `./volumes/logs` | Log files |
 
+## Execute Commands in a Running Container
+
+```bash
+# Reload configuration
+docker exec -it unrealircd-server /home/ircd/unrealircd/unrealircd rehash
+
+# Check server status
+docker exec -it unrealircd-server /home/ircd/unrealircd/unrealircd status
+```
+
 ## Stop
 
 ```bash
