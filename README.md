@@ -2,56 +2,29 @@
 
 Docker image for running an [UnrealIRCd](https://www.unrealircd.org/) IRC server (v6.2.7) based on Alpine Linux.
 
-## Quick Start
+## Folder Structure
 
-```bash
-docker compose up -d
+```
+Unrealircd-docker/
+├── compose.yml
+├── Dockerfile
+└── volumes/
+    ├── conf/         (auto-generated)
+    ├── data/         (auto-generated)
+    ├── cache/        (auto-generated)
+    ├── tmp/          (auto-generated)
+    └── logs/         (auto-generated)
 ```
 
-## Build
+## Pull Image
 
 ```bash
-docker build -t unrealircd:latest .
+docker pull adator85/unrealircd:latest
 ```
 
-## Ports
+## Setup
 
-| Port | Protocol | Description |
-|------|----------|-------------|
-| 6667 | TCP | IRC (plaintext) |
-| 6697 | TCP | IRC over SSL/TLS |
-
-## Volumes
-
-The following volumes are mounted for persistence:
-
-| Container Path | Host Path | Description |
-|----------------|-----------|-------------|
-| `/home/ircd/unrealircd/conf` | `./volumes/conf` | Configuration files |
-| `/home/ircd/unrealircd/data` | `./volumes/data` | Persistent data |
-| `/home/ircd/unrealircd/cache` | `./volumes/cache` | Cache |
-| `/home/ircd/unrealircd/tmp` | `./volumes/tmp` | Temporary files |
-| `/home/ircd/unrealircd/logs` | `./volumes/logs` | Log files |
-
-## First Run
-
-On first startup, if `volumes/conf/unrealircd.conf` is missing, the entrypoint copies a default configuration and exits with an error. **You must edit `volumes/conf/unrealircd.conf`** before starting the server:
-
-```bash
-# Start once to generate default config (it will exit with an error)
-docker compose up -d
-
-# Stop the container
-docker compose down
-
-# Edit the configuration file
-nano volumes/conf/unrealircd.conf
-
-# Start again
-docker compose up -d
-```
-
-## Compose Example
+Create a `volumes` folder in the same location as your `compose.yml` and add the following:
 
 ```yaml
 services:
@@ -70,15 +43,40 @@ services:
       - ./volumes/logs:/home/ircd/unrealircd/logs
 ```
 
-## Configuration
+## First Run
 
-Edit `volumes/conf/unrealircd.conf` to customize your server. The provided config includes:
+```bash
+# Start once to generate default config (it will exit with an error)
+docker compose up -d
 
-- Server name: `irc.local.org`
-- Ports: 6667 (plain), 6697 (TLS), 6901 (server links)
-- Oper user: `adator` (password hash in config)
-- WebSocket on port 8006
-- JSON-RPC API on port 8600
+# Stop the container
+docker compose down
+
+# Edit the configuration file
+nano volumes/conf/unrealircd.conf
+
+# Start again
+docker compose up -d
+```
+
+Refer to the [UnrealIRCd Configuration Guide](https://www.unrealircd.org/docs/Configuration) to configure your server.
+
+## Ports
+
+| Port | Protocol | Description |
+|------|----------|-------------|
+| 6667 | TCP | IRC (plaintext) |
+| 6697 | TCP | IRC over SSL/TLS |
+
+## Volumes
+
+| Container Path | Host Path | Description |
+|----------------|-----------|-------------|
+| `/home/ircd/unrealircd/conf` | `./volumes/conf` | Configuration files |
+| `/home/ircd/unrealircd/data` | `./volumes/data` | Persistent data |
+| `/home/ircd/unrealircd/cache` | `./volumes/cache` | Cache |
+| `/home/ircd/unrealircd/tmp` | `./volumes/tmp` | Temporary files |
+| `/home/ircd/unrealircd/logs` | `./volumes/logs` | Log files |
 
 ## Stop
 
