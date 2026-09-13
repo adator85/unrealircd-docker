@@ -2,6 +2,8 @@
 
 Docker image for running an [UnrealIRCd](https://www.unrealircd.org/) IRC server (v6.2.7) based on Alpine Linux.
 
+Source: [github.com/adator85/unrealircd-docker](https://github.com/adator85/unrealircd-docker)
+
 ## Folder Structure
 
 ```
