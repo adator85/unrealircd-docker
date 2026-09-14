@@ -1,89 +1,42 @@
 #!/bin/sh
-set -e
+set -eu
 
-cleanup() {
-    echo "==> [INFO] Stopping container..."
-    echo "==> [INFO] Stopping UnrealIRCd..."
-
-    su-exec ircd ./unrealircd stop || true
-
-    echo "==> [INFO] UnrealIRCd stopped."
-    exit 0
-}
-
-trap cleanup TERM INT
-
-DEFAULTS_DIR="/home/ircd/unrealircd-defaults"
+USER_NAME="ircd"
+GROUP_NAME="ircd"
 WORK_DIR="/home/ircd/unrealircd"
-UUID_NAME="ircd"
-GUID_NAME="ircd"
+DEFAULT_CONF="${WORK_DIR}/conf.default"
+CONF_DIR="${WORK_DIR}/conf"
 
-echo "==> [INIT] Folder checks..."
-
+# The image may be started with bind mounts owned by root on the host.
+# Fix ownership once at startup; do not chmod the whole tree world-writable.
 for dir in conf data cache tmp logs; do
-    TARGET_DIR="$WORK_DIR/$dir"
-    SOURCE_DIR="$DEFAULTS_DIR/$dir"
-
-    chown -R "$UUID_NAME":"$GUID_NAME" "$TARGET_DIR"
-
-    # 2. Specific logic by folder
-    if [ "$dir" = "conf" ]; then
-        # For configuration we should kill the process.
-        if [ ! -f "$TARGET_DIR/unrealircd.conf" ]; then
-            echo "==> [INFO] Fichier unrealircd.conf manquant. Copie de la configuration par défaut..."
-            echo "==> [INFO] $SOURCE_DIR/. ==> $TARGET_DIR/"
-            cp -Ra "$SOURCE_DIR/." "$TARGET_DIR/"
-
-            echo "==> [ERROR] Please configure unrealircd.conf"
-            exit 1
-        fi
-    else
-        # For the rest we just copy.
-        if [ -z "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]; then
-            echo "==> [INFO] Folder $dir empty. Starting the default structure copy..."
-            echo "==> [INFO] $SOURCE_DIR/ ==> $TARGET_DIR/"
-            cp -Ra "$SOURCE_DIR/." "$TARGET_DIR/" 2>/dev/null || true
-        fi
-    fi
-
-    chown -R "${UUID_NAME}":"${GUID_NAME}" "${TARGET_DIR}"
-    chmod -R u+rwX,go+rwX "${TARGET_DIR}"
-
-    # everyone can write.
-    find "${TARGET_DIR}" -type d -exec chmod 777 {} \;
-    find "${TARGET_DIR}" -type f -exec chmod 666 {} \;
+    target="${WORK_DIR}/${dir}"
+    mkdir -p "$target"
+    chown "$USER_NAME:$GROUP_NAME" "$target"
 done
 
-echo "==> [INFO] Starting UnrealIRCd as '$UUID_NAME'..."
-cd /home/ircd/unrealircd
-
-echo "=== BEFORE START ==="
-
-set +e
-su-exec ircd ./unrealircd start
-RC=$?
-set -e
-
-if [ "${RC}" -ne 0 ]; then
-    echo "==> [ERROR] UnrealIRCd crashed (code ${RC})"
-    exit "${RC}"
+# First run: copy the packaged configuration and stop so the administrator
+# can edit it before the daemon is started.
+if [ ! -f "${CONF_DIR}/unrealircd.conf" ]; then
+    echo "==> [INIT] No unrealircd.conf found; installing the shipped example configuration."
+    cp -a "${DEFAULT_CONF}/." "${CONF_DIR}/"
+    cp -a "${DEFAULT_CONF}/examples/example.conf" "${CONF_DIR}/unrealircd.conf"
+    chown -R "$USER_NAME:$GROUP_NAME" "$CONF_DIR"
+    chmod 0700 "$CONF_DIR"
+    echo "==> [ACTION] Edit ${CONF_DIR}/unrealircd.conf and start the container again."
+    exit 1
 fi
 
-echo "=== AFTER START ==="
-echo "RC=${RC}"
+# Generate a per-container self-signed certificate on first boot only.
+# Never bake a shared private key into the image.
+if { [ ! -f "${CONF_DIR}/tls/server.cert.pem" ] || [ ! -f "${CONF_DIR}/tls/server.key.pem" ]; } && \
+   { [ ! -f "${CONF_DIR}/ssl/server.cert.pem" ] || [ ! -f "${CONF_DIR}/ssl/server.key.pem" ]; }; then
+    echo "==> [INIT] Generating a self-signed TLS certificate..."
+    printf 'Y\n\n\n\n\n\n\n' | su-exec "$USER_NAME:$GROUP_NAME" "$WORK_DIR/unrealircd" mkcert
+fi
 
-echo "==> [INFO] UnrealIRCd started"
-su-exec ircd ./unrealircd status || true
-
-echo "==> [INFO] PROCESS:"
-ps aux | grep '[u]nrealircd' || true
-
-echo "=== BEFORE WHILE LOOP ==="
-
-# exec tail -f /dev/null
-while true; do
-    sleep 5
-done
-
-echo "=== AFTER WHILE LOOP ==="
-
+# Run the actual IRC daemon in the foreground so it is PID 1 and receives
+# Docker stop signals directly. The wrapper script intentionally is not used
+# for start/stop because it daemonizes the server.
+echo "==> [START] Starting UnrealIRCd as ${USER_NAME}..."
+exec su-exec "$USER_NAME:$GROUP_NAME" "$WORK_DIR/bin/unrealircd" -F

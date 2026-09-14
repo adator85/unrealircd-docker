@@ -1,120 +1,105 @@
 # syntax=docker/dockerfile:1
 
-# ===========================
-# Alpine Linux version
-# ===========================
-
-ARG ALPINE_VERSION=3.20
-
-# base image
-FROM alpine:${ALPINE_VERSION}
-
-# ===========================
-# UnrealIRCd Dockerfile
-# ===========================
-
+ARG ALPINE_VERSION=3.24.1
 ARG UNREALIRCD_VERSION=6.2.7
 ARG UNREALIRCD_USER=ircd
 ARG UNREALIRCD_UID=1000
 ARG UNREALIRCD_GID=1000
-ARG UNREALIRCD_INSTALL_DIR=/opt/unrealircd
+ARG UNREALIRCD_INSTALL_DIR=/home/ircd/unrealircd
 
+# -------------------------
+# Build stage
+# -------------------------
+FROM alpine:${ALPINE_VERSION} AS builder
 
-# Install build dependencies
-RUN apk add --no-cache \
-    build-base \
-    curl \
-    ca-certificates \
-    openssl-dev \
-    openssl \
-    pcre2-dev \
-    c-ares-dev \
-    curl-dev \
-    pkgconf \
-    su-exec
+ARG UNREALIRCD_VERSION
+ARG UNREALIRCD_USER
+ARG UNREALIRCD_UID
+ARG UNREALIRCD_GID
+ARG UNREALIRCD_INSTALL_DIR
 
-# Creation of the UnrealIRCd user
-RUN addgroup -S -g ${UNREALIRCD_GID} ${UNREALIRCD_USER} \
-    && adduser -S \
-        -u ${UNREALIRCD_UID} \
-        -G ${UNREALIRCD_USER} \
-        -h /home/ircd \
-        ${UNREALIRCD_USER}
+RUN apk add --no-cache build-base openssl-dev openssl wget \
+    && addgroup -S -g "${UNREALIRCD_GID}" "${UNREALIRCD_USER}" \
+    && adduser -S -u "${UNREALIRCD_UID}" -G "${UNREALIRCD_USER}" -h /home/ircd "${UNREALIRCD_USER}" \
+    && mkdir -p /src /build "${UNREALIRCD_INSTALL_DIR}" \
+    && chown -R "${UNREALIRCD_USER}:${UNREALIRCD_USER}" /src /build /home/ircd
 
-RUN cat /etc/passwd | grep ${UNREALIRCD_USER}
-
-# Installation directory
-RUN mkdir -p ${UNREALIRCD_INSTALL_DIR} \
-    && chown -R ${UNREALIRCD_USER}:${UNREALIRCD_USER} ${UNREALIRCD_INSTALL_DIR}
-
-# Working dir
-WORKDIR ${UNREALIRCD_INSTALL_DIR}
-
-# Download and extract UnrealIRCd source code
-RUN curl -fL \
-    https://www.unrealircd.org/downloads/unrealircd-${UNREALIRCD_VERSION}.tar.gz \
-    -o /tmp/unrealircd.tar.gz \
-    && file /tmp/unrealircd.tar.gz \
-    && tar xzf /tmp/unrealircd.tar.gz --strip-components=1 \
-    && rm /tmp/unrealircd.tar.gz \
-    && chown -R ${UNREALIRCD_USER}:${UNREALIRCD_USER} ${UNREALIRCD_INSTALL_DIR} \
-    && chmod +x ./Config
-
-COPY ./entrypoint.sh /home/ircd/entrypoint.sh
-
-RUN chown -R ${UNREALIRCD_USER}:${UNREALIRCD_USER} /home/ircd/entrypoint.sh \
-    && chmod +x /home/ircd/entrypoint.sh
-
-# Tout ce qui suit est exécuté en tant que utilisateur non-root
+WORKDIR /src
 USER ${UNREALIRCD_USER}
 
-RUN ls -la ${UNREALIRCD_INSTALL_DIR} \
-    && ls -l ${UNREALIRCD_INSTALL_DIR}/Config \
-    && id \
-    && stat ${UNREALIRCD_INSTALL_DIR}/Config
-
-# 2️⃣ Configuration rapide (options non-interactive)
-#    (c’est possible : le script `./Config` accepte des drapeaux)
-RUN ./Config \
-    --install-dir=${UNREALIRCD_INSTALL_DIR} \
-    --enable-ssl \
-    --enable-pcre \
-    --disable-debug \
-    --with-permissions=0 \
-    --quiet
-
-RUN make -j$(nproc) \
+RUN wget --trust-server-names -O /tmp/unrealircd.tar.gz \
+    "https://www.unrealircd.org/downloads/unrealircd-${UNREALIRCD_VERSION}.tar.gz" \
+    && tar -xzf /tmp/unrealircd.tar.gz --strip-components=1 \
+    && rm -f /tmp/unrealircd.tar.gz \
+    && ./configure \
+         --enable-dynamic-linking \
+         --enable-ssl \
+         --with-bindir="${UNREALIRCD_INSTALL_DIR}/bin" \
+         --with-scriptdir="${UNREALIRCD_INSTALL_DIR}" \
+         --with-confdir="${UNREALIRCD_INSTALL_DIR}/conf" \
+         --with-datadir="${UNREALIRCD_INSTALL_DIR}/data" \
+         --with-modulesdir="${UNREALIRCD_INSTALL_DIR}/modules" \
+         --with-logdir="${UNREALIRCD_INSTALL_DIR}/logs" \
+         --with-cachedir="${UNREALIRCD_INSTALL_DIR}/cache" \
+         --with-tmpdir="${UNREALIRCD_INSTALL_DIR}/tmp" \
+         --with-docdir="${UNREALIRCD_INSTALL_DIR}/doc" \
+         --with-privatelibdir="${UNREALIRCD_INSTALL_DIR}/lib" \
+         --with-pidfile="${UNREALIRCD_INSTALL_DIR}/data/unrealircd.pid" \
+         --with-controlfile="${UNREALIRCD_INSTALL_DIR}/data/unrealircd.ctl" \
+         --with-permissions=0 \
+         --disable-libcurl \
+         --enable-mmdb \
+         --disable-debug \
+    && make -j"$(nproc)" \
     && make install
 
-# 4️⃣ (Optionnel) Copier un fichier de configuration par défaut
-#    Vous pouvez remplacer ce fichier par votre propre `unrealircd.conf`
-# COPY ./volumes/conf/unrealircd.conf /home/ircd/unrealircd/conf/unrealircd.conf
-
-VOLUME ["/home/ircd/unrealircd/conf", "/home/ircd/unrealircd/data", "/home/ircd/unrealircd/logs"]
-
-# 5️⃣ Port IRC à exposer (défaut : 6667)
-EXPOSE 6667 6697
-
-# 6️⃣ Créer un certificat SSL auto-signé pour le serveur IRC (optionnel)
-RUN cd /home/ircd/unrealircd \
-    && printf 'Y\n\n\n\n\n\n\n' | ./unrealircd mkcert
-
-RUN mkdir -p /home/ircd/unrealircd-defaults && \
-    cp -ar /home/ircd/unrealircd/conf /home/ircd/unrealircd-defaults/ && \
-    cp -ar /home/ircd/unrealircd/data /home/ircd/unrealircd-defaults/ && \
-    cp -ar /home/ircd/unrealircd/cache /home/ircd/unrealircd-defaults/ && \
-    cp -ar /home/ircd/unrealircd/tmp /home/ircd/unrealircd-defaults/
-
-# Nettoyage des dossiers actifs (ils seront remplis par l'entrypoint ou les volumes)
-RUN rm -rf /home/ircd/unrealircd/conf/* \
-           /home/ircd/unrealircd/data/* \
-           /home/ircd/unrealircd/cache/* \
-           /home/ircd/unrealircd/tmp/*
-
-RUN chown -R ${UNREALIRCD_USER}:${UNREALIRCD_USER} /home/ircd/unrealircd-defaults
-RUN chmod -R u+rwX,go+rwX /home/ircd/unrealircd-defaults
-
+# Remove files that are only useful for development/runtime self-debugging.
+# The installed source tree is intentionally NOT copied to the final image.
 USER root
+RUN ls -l /
+RUN rm -rf \
+      "${UNREALIRCD_INSTALL_DIR}/doc" \
+      "${UNREALIRCD_INSTALL_DIR}"/lib/*.a \
+      "${UNREALIRCD_INSTALL_DIR}"/lib/*.la \
+      "${UNREALIRCD_INSTALL_DIR}"/lib/pkgconfig \
+      /build \
+    && find "${UNREALIRCD_INSTALL_DIR}" -type f -name '*.so' -exec strip --strip-unneeded {} + \
+    && strip --strip-unneeded "${UNREALIRCD_INSTALL_DIR}/bin/unrealircd"
+
+# -------------------------
+# Runtime stage
+# -------------------------
+FROM alpine:${ALPINE_VERSION} AS runtime
+
+ARG UNREALIRCD_USER
+ARG UNREALIRCD_UID
+ARG UNREALIRCD_GID
+ARG UNREALIRCD_INSTALL_DIR
+
+RUN apk add --no-cache openssl su-exec \
+    && addgroup -S -g "${UNREALIRCD_GID}" "${UNREALIRCD_USER}" \
+    && adduser -S -u "${UNREALIRCD_UID}" -G "${UNREALIRCD_USER}" -h /home/ircd "${UNREALIRCD_USER}" \
+    && mkdir -p /home/ircd
+
+COPY --from=builder --chown=${UNREALIRCD_USER}:${UNREALIRCD_USER} \
+     ${UNREALIRCD_INSTALL_DIR} ${UNREALIRCD_INSTALL_DIR}
+
+# Keep the shipped config outside the volume mount point so first-run
+# initialization still works when /home/ircd/unrealircd/conf is bind-mounted.
+RUN mv "${UNREALIRCD_INSTALL_DIR}/conf" "${UNREALIRCD_INSTALL_DIR}/conf.default" \
+    && mkdir -p \
+         "${UNREALIRCD_INSTALL_DIR}/conf" \
+         "${UNREALIRCD_INSTALL_DIR}/data" \
+         "${UNREALIRCD_INSTALL_DIR}/cache" \
+         "${UNREALIRCD_INSTALL_DIR}/tmp" \
+         "${UNREALIRCD_INSTALL_DIR}/logs" \
+    && chown -R "${UNREALIRCD_USER}:${UNREALIRCD_USER}" "${UNREALIRCD_INSTALL_DIR}"
+
+WORKDIR ${UNREALIRCD_INSTALL_DIR}
+
+COPY --chmod=0755 entrypoint.sh /usr/local/bin/entrypoint.sh
+
+EXPOSE 6667 6697
 STOPSIGNAL SIGTERM
 
-CMD ["/home/ircd/entrypoint.sh"]
+CMD ["/usr/local/bin/entrypoint.sh"]
