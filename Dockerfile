@@ -1,11 +1,14 @@
 # syntax=docker/dockerfile:1
 
 ARG ALPINE_VERSION=3.24.1
-ARG UNREALIRCD_VERSION=6.2.7
+ARG UNREALIRCD_VERSION=6.2.7.1
 ARG UNREALIRCD_USER=ircd
 ARG UNREALIRCD_UID=1000
 ARG UNREALIRCD_GID=1000
 ARG UNREALIRCD_INSTALL_DIR=/home/ircd/unrealircd
+
+ARG MAINTAINER="adator <adator@octobyte.ovh>"
+ARG DOCKERFILE_SOURCE="https://github.com/adator85/unrealircd-docker"
 
 # -------------------------
 # Build stage
@@ -46,7 +49,7 @@ RUN wget --trust-server-names -O /tmp/unrealircd.tar.gz \
          --with-privatelibdir="${UNREALIRCD_INSTALL_DIR}/lib" \
          --with-pidfile="${UNREALIRCD_INSTALL_DIR}/data/unrealircd.pid" \
          --with-controlfile="${UNREALIRCD_INSTALL_DIR}/data/unrealircd.ctl" \
-         --with-permissions=0 \
+         --with-permissions=0600 \
          --disable-libcurl \
          --enable-mmdb \
          --disable-debug \
@@ -71,10 +74,19 @@ RUN rm -rf \
 # -------------------------
 FROM alpine:${ALPINE_VERSION} AS runtime
 
+ARG MAINTAINER
+ARG DOCKERFILE_SOURCE
+ARG ALPINE_VERSION
+ARG UNREALIRCD_VERSION
 ARG UNREALIRCD_USER
 ARG UNREALIRCD_UID
 ARG UNREALIRCD_GID
 ARG UNREALIRCD_INSTALL_DIR
+
+LABEL maintainer="${MAINTAINER}"
+LABEL os_version="Alpine: ${ALPINE_VERSION}"
+LABEL unrealircd_version="UnrealIRCd-v${UNREALIRCD_VERSION}"
+LABEL dockerfile_source="${DOCKERFILE_SOURCE}"
 
 RUN apk add --no-cache openssl su-exec \
     && addgroup -S -g "${UNREALIRCD_GID}" "${UNREALIRCD_USER}" \

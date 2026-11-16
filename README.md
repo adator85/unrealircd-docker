@@ -10,12 +10,12 @@ Source: [github.com/adator85/unrealircd-docker](https://github.com/adator85/unre
 Unrealircd-docker/
 ├── compose.yml
 ├── Dockerfile
-└── volumes/
-    ├── conf/         (auto-generated)
-    ├── data/         (auto-generated)
-    ├── cache/        (auto-generated)
-    ├── tmp/          (auto-generated)
-    └── logs/         (auto-generated)
+└── volumes/                             (auto-generated)
+    ├── conf/                            (auto-generated)
+    ├── data/                            (auto-generated)
+    ├── cache/                           (auto-generated)
+    ├── tmp/                             (auto-generated)
+    └── logs/                            (auto-generated)
 ```
 
 ## Pull Image

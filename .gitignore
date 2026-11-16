@@ -2,3 +2,4 @@ volumes/
 
 *_Backup
 *.conf
+*.txt

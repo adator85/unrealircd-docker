@@ -29,8 +29,7 @@ fi
 
 # Generate a per-container self-signed certificate on first boot only.
 # Never bake a shared private key into the image.
-if { [ ! -f "${CONF_DIR}/tls/server.cert.pem" ] || [ ! -f "${CONF_DIR}/tls/server.key.pem" ]; } && \
-   { [ ! -f "${CONF_DIR}/ssl/server.cert.pem" ] || [ ! -f "${CONF_DIR}/ssl/server.key.pem" ]; }; then
+if { [ ! -f "${CONF_DIR}/tls/server.cert.pem" ] || [ ! -f "${CONF_DIR}/tls/server.key.pem" ]; }; then
     echo "==> [INIT] Generating a self-signed TLS certificate..."
     printf 'Y\n\n\n\n\n\n\n' | su-exec "$USER_NAME:$GROUP_NAME" "$WORK_DIR/unrealircd" mkcert
 fi
