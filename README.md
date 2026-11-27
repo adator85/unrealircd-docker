@@ -1,6 +1,6 @@
 # UnrealIRCd Docker
 
-Docker image for running an [UnrealIRCd](https://www.unrealircd.org/) IRC server (v6.2.7) based on Alpine Linux.
+Docker image for running an [UnrealIRCd](https://www.unrealircd.org/) IRC server (v6.2.8) based on Alpine Linux.
 
 Source: [github.com/adator85/unrealircd-docker](https://github.com/adator85/unrealircd-docker)
 
@@ -32,7 +32,7 @@ Create a `volumes` folder in the same location as your `compose.yml` and add the
 services:
   unrealircd:
     image: unrealircd:latest
-    container_name: unrealircd-server
+    container_name: ircd-server
     restart: unless-stopped
     ports:
       - "6667:6667"
@@ -84,10 +84,10 @@ Refer to the [UnrealIRCd Configuration Guide](https://www.unrealircd.org/docs/Co
 
 ```bash
 # Reload configuration
-docker exec -it unrealircd-server /home/ircd/unrealircd/unrealircd rehash
+docker exec -u ircd -it ircd-server /home/ircd/unrealircd/unrealircd rehash
 
 # Check server status
-docker exec -it unrealircd-server /home/ircd/unrealircd/unrealircd status
+docker exec -u ircd -it ircd-server /home/ircd/unrealircd/unrealircd status
 ```
 
 ## Stop

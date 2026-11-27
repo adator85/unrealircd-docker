@@ -1,7 +1,7 @@
 services:
   unrealircd:
-    image: unrealircd:latest
-    container_name: unrealircd-server
+    image: adator85/unrealircd:latest
+    container_name: ircd-server
     restart: unless-stopped
 
     ports:
